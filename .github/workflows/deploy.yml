@@ -3,6 +3,11 @@ name: Deploy to AWS App Runner
 on:
   push:
     branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - '*.md'
+      - 'docs/**'
+  workflow_dispatch:
 
 jobs:
   deploy:
