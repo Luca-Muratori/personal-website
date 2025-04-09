@@ -1,0 +1,64 @@
+name: Deploy to AWS App Runner
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+      
+      - name: Create ECR repository if it doesn't exist
+        run: |
+          aws ecr describe-repositories --repository-names my-website || aws ecr create-repository --repository-name my-website
+      
+      - name: Build and push Docker image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: my-website
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+      
+      - name: Check if App Runner service exists
+        id: check-service
+        run: |
+          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='my-website'].ServiceArn" --output text)
+          echo "SERVICE_ARN=${SERVICE_ARN}" >> $GITHUB_OUTPUT
+          if [ -z "$SERVICE_ARN" ]; then
+            echo "EXISTS=false" >> $GITHUB_OUTPUT
+          else
+            echo "EXISTS=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create new App Runner service
+        if: steps.check-service.outputs.EXISTS == 'false'
+        run: |
+          aws apprunner create-service \
+            --service-name my-website \
+            --source-configuration "ImageRepository={ImageIdentifier=${{ steps.login-ecr.outputs.registry }}/my-website:${{ github.sha }},ImageConfiguration={Port=80},ImageRepositoryType=ECR}" \
+            --auto-scaling-configuration-arn "$(aws apprunner list-auto-scaling-configurations --query 'AutoScalingConfigurationSummaryList[0].AutoScalingConfigurationArn' --output text)"
+          echo "App Runner service created successfully"
+
+      - name: Update existing App Runner service
+        if: steps.check-service.outputs.EXISTS == 'true'
+        run: |
+          aws apprunner update-service \
+            --service-arn "${{ steps.check-service.outputs.SERVICE_ARN }}" \
+            --source-configuration "ImageRepository={ImageIdentifier=${{ steps.login-ecr.outputs.registry }}/my-website:${{ github.sha }},ImageConfiguration={Port=80},ImageRepositoryType=ECR}"
+          echo "App Runner service updated successfully"
