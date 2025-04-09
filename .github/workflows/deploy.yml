@@ -85,10 +85,18 @@ jobs:
                   "Port": "80"
                 },
                 "ImageRepositoryType": "ECR"
-                },
-                "AuthenticationConfiguration": {
-                  "AccessRoleArn": "${{ steps.create-iam-role.outputs.ROLE_ARN }}"
+              },
+              "AuthenticationConfiguration": {
+                "AccessRoleArn": "${{ steps.create-iam-role.outputs.ROLE_ARN }}"
               }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/",
+              "Interval": 5,
+              "Timeout": 2,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
             }' \
             --auto-scaling-configuration-arn "$(aws apprunner list-auto-scaling-configurations --query 'AutoScalingConfigurationSummaryList[0].AutoScalingConfigurationArn' --output text)"
           echo "App Runner service created successfully"
@@ -107,8 +115,16 @@ jobs:
                 },
                 "ImageRepositoryType": "ECR"
               },
-                "AuthenticationConfiguration": {
-                  "AccessRoleArn": "'$ROLE_ARN'"
+              "AuthenticationConfiguration": {
+                "AccessRoleArn": "'$ROLE_ARN'"
               }
+            }' \
+            --health-check-configuration '{
+              "Protocol": "HTTP",
+              "Path": "/",
+              "Interval": 5,
+              "Timeout": 2,
+              "HealthyThreshold": 1,
+              "UnhealthyThreshold": 5
             }'
           echo "App Runner service updated successfully"
