@@ -45,20 +45,69 @@ jobs:
           else
             echo "EXISTS=true" >> $GITHUB_OUTPUT
           fi
-
+        
+      - name: Create IAM role for App Runner (if needed)
+        if: steps.check-service.outputs.EXISTS == 'false'
+        run: |
+          ROLE_ARN=$(aws iam get-role --role-name AppRunnerECRAccessRole --query "Role.Arn" --output text 2>/dev/null || echo "")
+          if [ -z "$ROLE_ARN" ]; then
+            aws iam create-role --role-name AppRunnerECRAccessRole \
+              --assume-role-policy-document '{
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Service": "build.apprunner.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                  }
+                ]
+              }'
+            aws iam attach-role-policy --role-name AppRunnerECRAccessRole \
+              --policy-arn arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess
+            # Wait for role to propagate
+            sleep 10
+          fi
+          ROLE_ARN=$(aws iam get-role --role-name AppRunnerECRAccessRole --query "Role.Arn" --output text)
+          echo "ROLE_ARN=${ROLE_ARN}" >> $GITHUB_OUTPUT
+      
       - name: Create new App Runner service
         if: steps.check-service.outputs.EXISTS == 'false'
         run: |
           aws apprunner create-service \
             --service-name my-website \
-            --source-configuration "ImageRepository={ImageIdentifier=${{ steps.login-ecr.outputs.registry }}/my-website:${{ github.sha }},ImageConfiguration={Port=80},ImageRepositoryType=ECR}" \
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "${{ steps.login-ecr.outputs.registry }}/my-website:${{ github.sha }}",
+                "ImageConfiguration": {
+                  "Port": "80"
+                },
+                "ImageRepositoryType": "ECR",
+                "AuthenticationConfiguration": {
+                  "RoleArn": "${{ steps.create-iam-role.outputs.ROLE_ARN }}"
+                }
+              }
+            }' \
             --auto-scaling-configuration-arn "$(aws apprunner list-auto-scaling-configurations --query 'AutoScalingConfigurationSummaryList[0].AutoScalingConfigurationArn' --output text)"
           echo "App Runner service created successfully"
-
+      
       - name: Update existing App Runner service
         if: steps.check-service.outputs.EXISTS == 'true'
         run: |
+          ROLE_ARN=$(aws iam get-role --role-name AppRunnerECRAccessRole --query "Role.Arn" --output text)
           aws apprunner update-service \
             --service-arn "${{ steps.check-service.outputs.SERVICE_ARN }}" \
-            --source-configuration "ImageRepository={ImageIdentifier=${{ steps.login-ecr.outputs.registry }}/my-website:${{ github.sha }},ImageConfiguration={Port=80},ImageRepositoryType=ECR}"
+            --source-configuration '{
+              "ImageRepository": {
+                "ImageIdentifier": "${{ steps.login-ecr.outputs.registry }}/my-website:${{ github.sha }}",
+                "ImageConfiguration": {
+                  "Port": "80"
+                },
+                "ImageRepositoryType": "ECR",
+                "AuthenticationConfiguration": {
+                  "RoleArn": "'$ROLE_ARN'"
+                }
+              }
+            }'
           echo "App Runner service updated successfully"
