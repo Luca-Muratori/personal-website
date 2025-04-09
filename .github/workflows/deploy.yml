@@ -87,7 +87,7 @@ jobs:
                 "ImageRepositoryType": "ECR"
                 },
                 "AuthenticationConfiguration": {
-                  "RoleArn": "${{ steps.create-iam-role.outputs.ROLE_ARN }}"
+                  "AccessRoleArn": "${{ steps.create-iam-role.outputs.ROLE_ARN }}"
               }
             }' \
             --auto-scaling-configuration-arn "$(aws apprunner list-auto-scaling-configurations --query 'AutoScalingConfigurationSummaryList[0].AutoScalingConfigurationArn' --output text)"
@@ -108,7 +108,7 @@ jobs:
                 "ImageRepositoryType": "ECR"
               },
                 "AuthenticationConfiguration": {
-                  "RoleArn": "'$ROLE_ARN'"
+                  "AccessRoleArn": "'$ROLE_ARN'"
               }
             }'
           echo "App Runner service updated successfully"
