@@ -84,9 +84,9 @@ jobs:
                   "Port": "80"
                 },
                 "ImageRepositoryType": "ECR",
+                },
                 "AuthenticationConfiguration": {
                   "RoleArn": "${{ steps.create-iam-role.outputs.ROLE_ARN }}"
-                }
               }
             }' \
             --auto-scaling-configuration-arn "$(aws apprunner list-auto-scaling-configurations --query 'AutoScalingConfigurationSummaryList[0].AutoScalingConfigurationArn' --output text)"
@@ -105,9 +105,9 @@ jobs:
                   "Port": "80"
                 },
                 "ImageRepositoryType": "ECR",
+                },
                 "AuthenticationConfiguration": {
                   "RoleArn": "'$ROLE_ARN'"
-                }
               }
             }'
           echo "App Runner service updated successfully"
