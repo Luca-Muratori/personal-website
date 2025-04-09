@@ -48,6 +48,7 @@ jobs:
         
       - name: Create IAM role for App Runner (if needed)
         if: steps.check-service.outputs.EXISTS == 'false'
+        id: create-iam-role
         run: |
           ROLE_ARN=$(aws iam get-role --role-name AppRunnerECRAccessRole --query "Role.Arn" --output text 2>/dev/null || echo "")
           if [ -z "$ROLE_ARN" ]; then
@@ -83,7 +84,7 @@ jobs:
                 "ImageConfiguration": {
                   "Port": "80"
                 },
-                "ImageRepositoryType": "ECR",
+                "ImageRepositoryType": "ECR"
                 },
                 "AuthenticationConfiguration": {
                   "RoleArn": "${{ steps.create-iam-role.outputs.ROLE_ARN }}"
@@ -104,8 +105,8 @@ jobs:
                 "ImageConfiguration": {
                   "Port": "80"
                 },
-                "ImageRepositoryType": "ECR",
-                },
+                "ImageRepositoryType": "ECR"
+              },
                 "AuthenticationConfiguration": {
                   "RoleArn": "'$ROLE_ARN'"
               }
